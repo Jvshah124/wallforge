@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WallForge - AI Wallpaper Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+        }
+        .dark .gradient-bg {
+            background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+        }
+        .gallery-item {
+            transition: all 0.3s ease;
+        }
+        .gallery-item:hover {
+            transform: scale(1.03);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .logo {
+            font-family: 'Arial', sans-serif;
+            font-weight: bold;
+            background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .dark .logo {
+            background: linear-gradient(135deg, #a777e3 0%, #6e8efb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .modal {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-gray-900 dark:text-white transition-colors duration-200">
+    <!-- API Key Modal -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 modal opacity-0 invisible">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 class="text-xl font-bold mb-4">Enter Hugging Face API Key</h3>
+            <p class="text-sm mb-4 opacity-80">You need a Hugging Face API key to use this service. Get one at <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-purple-500 hover:underline">huggingface.co/settings/tokens</a></p>
+            <input type="password" id="hfApiKeyInput" placeholder="Enter your API key" class="w-full px-4 py-2 rounded-lg bg-white/20 dark:bg-black/20 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300 text-black dark:text-white mb-4">
+            <div class="flex justify-end space-x-3">
+                <button id="cancelApiKeyBtn" class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600">Cancel</button>
+                <button id="saveApiKeyBtn" class="px-4 py-2 rounded-lg bg-purple-600 text-white">Save Key</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12 relative">
+            <div class="absolute top-0 right-0">
+                <button id="themeToggle" class="p-2 rounded-full bg-white/20 dark:bg-black/20 hover:bg-white/30 dark:hover:bg-black/30 transition">
+                    <i class="fas fa-sun dark:hidden"></i>
+                    <i class="fas fa-moon hidden dark:inline"></i>
+                </button>
+            </div>
+            <div class="logo text-5xl md:text-6xl font-bold mb-2">WF</div>
+            <h1 class="text-4xl md:text-5xl font-bold mb-2">WallForge</h1>
+            <p class="text-xl opacity-90">Generate stunning AI wallpapers with a simple prompt</p>
+        </header>
+
+        <main class="max-w-3xl mx-auto">
+            <div class="bg-white/10 dark:bg-black/10 backdrop-blur-md rounded-xl p-6 shadow-xl mb-8">
+                <div class="mb-6">
+                    <label for="prompt" class="block text-lg font-medium mb-2">Describe your wallpaper</label>
+                    <textarea id="prompt" rows="3" class="w-full px-4 py-3 rounded-lg bg-white/20 dark:bg-black/20 border border-white/30 dark:border-black/30 focus:outline-none focus:ring-2 focus:ring-purple-300 text-white placeholder-white/70 dark:placeholder-gray-400/70" placeholder="e.g. 'A futuristic cityscape at sunset with neon lights, cyberpunk style'"></textarea>
+                    <p class="text-sm mt-2 opacity-80">Tip: Be specific! Include colors, style, mood, and key elements.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <label class="block text-lg font-medium mb-2">Resolution</label>
+                        <div class="flex space-x-4">
+                            <label class="flex items-center">
+                                <input type="radio" name="resolution" value="512x768" class="h-4 w-4 text-purple-600 focus:ring-purple-500" checked>
+                                <span class="ml-2">Mobile (512×768)</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="resolution" value="1024x1024" class="h-4 w-4 text-purple-600 focus:ring-purple-500">
+                                <span class="ml-2">4K PC (1024×1024)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-lg font-medium mb-2">Style</label>
+                        <select id="style" class="w-full px-4 py-2 rounded-lg bg-white/20 dark:bg-black/20 border border-white/30 dark:border-black/30 focus:outline-none focus:ring-2 focus:ring-purple-300 text-white dark:text-gray-200">
+                            <option value="">Default</option>
+                            <option value="digital art">Digital Art</option>
+                            <option value="photorealistic">Photorealistic</option>
+                            <option value="anime">Anime</option>
+                            <option value="oil painting">Oil Painting</option>
+                            <option value="cyberpunk">Cyberpunk</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <label for="apiSource" class="block text-lg font-medium mb-2">AI Source</label>
+                    <select id="apiSource" class="w-full px-4 py-2 rounded-lg bg-white/20 dark:bg-black/20 border border-white/30 dark:border-black/30 focus:outline-none focus:ring-2 focus:ring-purple-300 text-white dark:text-gray-200">
+                        <option value="pollinations">Pollinations AI</option>
+                        <option value="huggingface">Hugging Face (Stable Diffusion)</option>
+                        <option value="custom">Custom API URL</option>
+                    </select>
+                    <div id="customUrlContainer" class="hidden mt-2">
+                        <input type="text" id="customApiUrl" placeholder="Enter your custom API endpoint URL" class="w-full px-4 py-2 rounded-lg bg-white/20 dark:bg-black/20 border border-white/30 dark:border-black/30 focus:outline-none focus:ring-2 focus:ring-purple-300 text-white dark:text-gray-200">
+                        <p class="text-xs mt-1 opacity-70">Note: Custom API should accept POST requests with prompt, width, height parameters</p>
+                    </div>
+                </div>
+
+                <button id="generateBtn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center">
+                    <i class="fas fa-magic mr-2"></i> Generate Wallpaper
+                </button>
+            </div>
+
+            <div id="resultContainer" class="hidden bg-white/10 dark:bg-black/10 backdrop-blur-md rounded-xl p-6 shadow-xl mb-8">
+                <h2 class="text-2xl font-bold mb-4">Your Generated Wallpaper</h2>
+                <div class="flex flex-col items-center">
+                    <div id="imageContainer" class="mb-4 relative">
+                        <img id="generatedImage" src="" alt="Generated wallpaper" class="rounded-lg max-w-full h-auto border-2 border-white/30 dark:border-black/30">
+                    </div>
+                    <button id="downloadBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200 flex items-center">
+                        <i class="fas fa-download mr-2"></i> Download
+                    </button>
+                </div>
+            </div>
+
+            <div id="loadingSpinner" class="hidden text-center py-12">
+                <div class="inline-block spinner text-4xl text-white dark:text-gray-200 mb-4">
+                    <i class="fas fa-circle-notch"></i>
+                </div>
+                <p class="text-xl">Generating your wallpaper... This may take 20-30 seconds</p>
+                <p class="text-sm mt-2 opacity-80">If it takes too long, try a different AI source or prompt</p>
+            </div>
+
+            <div id="errorContainer" class="hidden bg-red-500/20 dark:bg-red-900/20 backdrop-blur-md rounded-xl p-4 mb-8 text-center">
+                <p id="errorMessage" class="text-red-200 dark:text-red-300"></p>
+                <p class="text-sm mt-2">Try these solutions:
+                    <br>- Try a different AI source
+                    <br>- Make your prompt more specific
+                    <br>- Check your custom API URL (if used)
+                    <br>- Verify your Hugging Face API key
+                </p>
+            </div>
+
+            <div class="bg-white/10 dark:bg-black/10 backdrop-blur-md rounded-xl p-6 shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Your Gallery</h2>
+                    <button id="clearGalleryBtn" class="text-sm bg-red-500/30 hover:bg-red-500/40 py-1 px-3 rounded-lg transition duration-200">
+                        Clear Gallery
+                    </button>
+                </div>
+                <div id="gallery" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <p id="emptyGalleryMessage" class="col-span-full text-center py-8 opacity-80">Your generated wallpapers will appear here</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="text-center py-6 text-white/70 dark:text-gray-400 text-sm">
+        <p>WallForge uses AI to generate images. All images are created by AI.</p>
+        <p class="mt-2">Built by <a href="https://x.com/JvShah124" target="_blank" class="text-purple-300 dark:text-purple-400 hover:underline">Jv Shah</a></p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const generateBtn = document.getElementById('generateBtn');
+            const promptInput = document.getElementById('prompt');
+            const styleSelect = document.getElementById('style');
+            const apiSourceSelect = document.getElementById('apiSource');
+            const customUrlContainer = document.getElementById('customUrlContainer');
+            const customApiUrl = document.getElementById('customApiUrl');
+            const resultContainer = document.getElementById('resultContainer');
+            const generatedImage = document.getElementById('generatedImage');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const errorContainer = document.getElementById('errorContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            const gallery = document.getElementById('gallery');
+            const emptyGalleryMessage = document.getElementById('emptyGalleryMessage');
+            const clearGalleryBtn = document.getElementById('clearGalleryBtn');
+            const themeToggle = document.getElementById('themeToggle');
+            
+            // API Key Modal Elements
+            const apiKeyModal = document.getElementById('apiKeyModal');
+            const hfApiKeyInput = document.getElementById('hfApiKeyInput');
+            const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+            const cancelApiKeyBtn = document.getElementById('cancelApiKeyBtn');
+
+            // Constants
+            const HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0";
+            const HF_API_KEY_STORAGE_KEY = "wallforge_hf_api_key";
+
+            // Show/hide custom URL field based on selection
+            apiSourceSelect.addEventListener('change', function() {
+                customUrlContainer.classList.toggle('hidden', this.value !== 'custom');
+            });
+
+            // Theme management
+            function initTheme() {
+                const savedTheme = localStorage.getItem('theme') || 'light';
+                document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+                localStorage.setItem('theme', savedTheme);
+            }
+
+            function toggleTheme() {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            }
+
+            themeToggle.addEventListener('click', toggleTheme);
+            initTheme();
+
+            // API Key Modal Functions
+            function showApiKeyModal() {
+                apiKeyModal.classList.remove('invisible', 'opacity-0');
+                apiKeyModal.classList.add('visible', 'opacity-100');
+                hfApiKeyInput.focus();
+            }
+
+            function hideApiKeyModal() {
+                apiKeyModal.classList.remove('visible', 'opacity-100');
+                apiKeyModal.classList.add('invisible', 'opacity-0');
+            }
+
+            saveApiKeyBtn.addEventListener('click', function() {
+                const apiKey = hfApiKeyInput.value.trim();
+                if (apiKey) {
+                    localStorage.setItem(HF_API_KEY_STORAGE_KEY, apiKey);
+                    hideApiKeyModal();
+                    // Continue with generation if this was triggered from generate button
+                    if (generateBtn.dataset.waitingForApiKey === 'true') {
+                        delete generateBtn.dataset.waitingForApiKey;
+                        generateWallpaper();
+                    }
+                }
+            });
+
+            cancelApiKeyBtn.addEventListener('click', function() {
+                hideApiKeyModal();
+                // Reset API source if user cancels
+                if (generateBtn.dataset.waitingForApiKey === 'true') {
+                    delete generateBtn.dataset.waitingForApiKey;
+                    apiSourceSelect.value = 'pollinations';
+                }
+            });
+
+            // Load gallery from localStorage
+            loadGallery();
+
+            // Generate wallpaper
+            generateBtn.addEventListener('click', async function() {
+                const apiSource = apiSourceSelect.value;
+                
+                // Check if we need an API key for Hugging Face
+                if (apiSource === 'huggingface') {
+                    const savedApiKey = localStorage.getItem(HF_API_KEY_STORAGE_KEY);
+                    if (!savedApiKey) {
+                        // Show API key modal and wait for user input
+                        generateBtn.dataset.waitingForApiKey = 'true';
+                        showApiKeyModal();
+                        return;
+                    }
+                }
+                
+                generateWallpaper();
+            });
+
+            async function generateWallpaper() {
+                const prompt = promptInput.value.trim();
+                const resolution = document.querySelector('input[name="resolution"]:checked').value;
+                const style = styleSelect.value;
+                const apiSource = apiSourceSelect.value;
+                const customUrl = customApiUrl.value.trim();
+
+                if (!prompt) {
+                    showError('Please enter a prompt to generate a wallpaper');
+                    return;
+                }
+
+                if (apiSource === 'custom' && !customUrl) {
+                    showError('Please enter a custom API URL');
+                    return;
+                }
+
+                // Show loading spinner
+                loadingSpinner.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                errorContainer.classList.add('hidden');
+                generateBtn.disabled = true;
+
+                try {
+                    // Construct the full prompt with style if selected
+                    let fullPrompt = prompt;
+                    if (style) {
+                        fullPrompt += `, ${style} style`;
+                    }
+
+                    // Generate image using selected API source
+                    const [width, height] = resolution.split('x').map(Number);
+                    let imageUrl;
+
+                    switch(apiSource) {
+                        case 'pollinations':
+                            imageUrl = await generateWithPollinations(fullPrompt, width, height);
+                            break;
+                        case 'huggingface':
+                            const apiKey = localStorage.getItem(HF_API_KEY_STORAGE_KEY);
+                            if (!apiKey) {
+                                throw new Error('Hugging Face API key not found');
+                            }
+                            imageUrl = await generateWithHuggingFace(fullPrompt, width, height, apiKey);
+                            break;
+                        case 'custom':
+                            imageUrl = await generateWithCustomAPI(customUrl, fullPrompt, width, height);
+                            break;
+                        default:
+                            throw new Error('Invalid API source selected');
+                    }
+
+                    // Display result
+                    generatedImage.onerror = function() {
+                        this.src = '';
+                        showError('The generated image failed to load. Please try a different API source.');
+                    };
+                    generatedImage.src = imageUrl;
+                    generatedImage.alt = prompt;
+                    resultContainer.classList.remove('hidden');
+
+                    // Save to gallery
+                    saveToGallery(prompt, imageUrl, resolution, apiSource);
+                    loadGallery();
+                } catch (error) {
+                    console.error('Generation error:', error);
+                    showError(`Failed to generate wallpaper using ${apiSource}. Error: ${error.message}`);
+                } finally {
+                    loadingSpinner.classList.add('hidden');
+                    generateBtn.disabled = false;
+                }
+            }
+
+            // Image generation methods
+            async function generateWithPollinations(prompt, width, height) {
+                const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}`;
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(url);
+                    img.onerror = () => reject(new Error('Pollinations AI failed to generate image'));
+                    img.src = url;
+                });
+            }
+
+            async function generateWithHuggingFace(prompt, width, height, apiKey) {
+                const apiUrl = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        inputs: prompt,
+                        parameters: {
+                            width: width,
+                            height: height
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Hugging Face API error: ${response.status} - ${errorData.error || 'Unknown error'}`);
+                }
+
+                const blob = await response.blob();
+                return URL.createObjectURL(blob);
+            }
+
+            async function generateWithCustomAPI(url, prompt, width, height) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            prompt: prompt,
+                            width: width,
+                            height: height
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Custom API error: ${response.status}`);
+                    }
+
+                    // Handle both URL and blob responses
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const data = await response.json();
+                        if (data.url) {
+                            return data.url;
+                        }
+                        throw new Error('Custom API returned JSON but no image URL');
+                    } else if (contentType && contentType.includes('image')) {
+                        const blob = await response.blob();
+                        return URL.createObjectURL(blob);
+                    } else {
+                        throw new Error('Unsupported response type from custom API');
+                    }
+                } catch (error) {
+                    throw new Error(`Custom API failed: ${error.message}`);
+                }
+            }
+
+            // Download image
+            downloadBtn.addEventListener('click', function() {
+                const link = document.createElement('a');
+                link.href = generatedImage.src;
+                link.download = `wallforge-${Date.now()}.jpg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+
+            // Clear gallery
+            clearGalleryBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear your gallery? This cannot be undone.')) {
+                    localStorage.removeItem('wallforgeGallery');
+                    loadGallery();
+                }
+            });
+
+            // Function to save to gallery
+            function saveToGallery(prompt, imageUrl, resolution, apiSource) {
+                let galleryItems = JSON.parse(localStorage.getItem('wallforgeGallery')) || [];
+                
+                // Add new item to beginning of array
+                galleryItems.unshift({
+                    prompt,
+                    imageUrl,
+                    resolution,
+                    apiSource,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Keep only the last 20 items
+                if (galleryItems.length > 20) {
+                    galleryItems = galleryItems.slice(0, 20);
+                }
+
+                localStorage.setItem('wallforgeGallery', JSON.stringify(galleryItems));
+            }
+
+            // Function to load gallery
+            function loadGallery() {
+                const galleryItems = JSON.parse(localStorage.getItem('wallforgeGallery')) || [];
+                gallery.innerHTML = '';
+
+                if (galleryItems.length === 0) {
+                    emptyGalleryMessage.classList.remove('hidden');
+                    return;
+                }
+
+                emptyGalleryMessage.classList.add('hidden');
+
+                galleryItems.forEach((item, index) => {
+                    const galleryItem = document.createElement('div');
+                    galleryItem.className = 'gallery-item cursor-pointer';
+                    galleryItem.innerHTML = `
+                        <div class="relative aspect-square overflow-hidden rounded-lg bg-black/20">
+                            <img src="${item.imageUrl}" alt="${item.prompt}" class="w-full h-full object-cover" onerror="this.parentNode.innerHTML='<div class=\'w-full h-full flex items-center justify-center\'><span class=\'text-xs opacity-70\'>Failed to load<br>${item.apiSource}</span></div>'">
+                            <div class="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity duration-200 flex items-center justify-center p-2">
+                                <p class="text-sm text-center text-white">${item.prompt}</p>
+                                <p class="absolute bottom-1 left-1 text-xs opacity-70">${item.apiSource}</p>
+                            </div>
+                        </div>
+                        <div class="mt-2 flex justify-between items-center text-xs opacity-80">
+                            <span>${item.resolution}</span>
+                            <button class="download-item-btn" data-index="${index}">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    `;
+                    gallery.appendChild(galleryItem);
+                });
+
+                // Add event listeners to gallery download buttons
+                document.querySelectorAll('.download-item-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const index = parseInt(this.getAttribute('data-index'));
+                        downloadGalleryItem(index);
+                    });
+                });
+
+                // Add click event to show full image
+                document.querySelectorAll('.gallery-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const img = this.querySelector('img');
+                        if (img && !img.src.includes('data:image')) {
+                            generatedImage.src = img.src;
+                            generatedImage.alt = img.alt;
+                            resultContainer.classList.remove('hidden');
+                            resultContainer.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    });
+                });
+            }
+
+            // Function to download gallery item
+            function downloadGalleryItem(index) {
+                const galleryItems = JSON.parse(localStorage.getItem('wallforgeGallery')) || [];
+                if (index >= 0 && index < galleryItems.length) {
+                    const item = galleryItems[index];
+                    const link = document.createElement('a');
+                    link.href = item.imageUrl;
+                    link.download = `wallforge-${new Date(item.timestamp).getTime()}.jpg`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            }
+
+            // Function to show error
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorContainer.classList.remove('hidden');
+                errorContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    </script>
+</body>
+</html>
